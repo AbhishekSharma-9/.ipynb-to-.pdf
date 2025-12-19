@@ -30,7 +30,6 @@
             width: 100%;
             max-width: 600px;
             margin-bottom: 20px;
-            z-index: 100;
         }
 
         .btn {
@@ -46,46 +45,44 @@
         .btn:disabled { background-color: #ccc; cursor: not-allowed; }
         .btn-blue { background-color: #007bff; }
 
-        /* The Printable Area (A4 Paper Visual) */
+        /* PREVIEW AREA */
         #notebook-preview {
             background: white;
-            width: 210mm;
+            width: 210mm; /* A4 Width */
             min-height: 297mm;
             padding: 20mm;
             box-shadow: 0 0 15px rgba(0,0,0,0.2);
             box-sizing: border-box;
-            margin-bottom: 50px;
         }
 
-        /* Jupyter Styling */
-        .cell { margin-bottom: 15px; width: 100%; word-wrap: break-word; }
-        .input_area { background: #f7f7f7; border: 1px solid #cfcfcf; padding: 5px; border-radius: 2px; }
+        /* --- SMART PAGE BREAKS --- */
+        .cell { 
+            margin-bottom: 20px; 
+            width: 100%; 
+            /* This forces the PDF engine to NOT cut this element in half */
+            page-break-inside: avoid; 
+        }
+
+        /* JUPYTER STYLING */
+        .input_area { background: #f7f7f7; border: 1px solid #cfcfcf; padding: 10px; border-radius: 4px; }
         .prompt { 
             color: #303F9F; font-family: monospace; font-size: 13px; 
             width: 60px; text-align: right; padding-right: 10px; flex-shrink: 0;
+            user-select: none;
         }
-        .inner_cell { display: flex; flex-direction: row; }
+        .inner_cell { display: flex; flex-direction: row; margin-bottom: 5px; }
         .content_box { width: 100%; overflow-x: hidden; }
         
-        pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+        pre { margin: 0; white-space: pre-wrap; word-break: break-all; font-family: monospace; font-size: 13px; }
         img { max-width: 100%; height: auto; display: block; margin: 10px 0; }
-
-        /* Footer */
-        .custom-footer {
-            margin-top: 40px;
-            padding-top: 15px;
-            border-top: 2px solid #333;
-            text-align: center;
-            font-size: 12px;
-            color: #555;
-            background-color: #f9f9f9;
-            padding-bottom: 10px;
-        }
+        
+        .rendered_html { font-size: 14px; line-height: 1.5; }
+        .rendered_html h1, .rendered_html h2, .rendered_html h3 { margin-top: 10px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="controls">
+    <div class="controls" data-html2canvas-ignore="true">
         <h2>IPYNB to PDF Converter</h2>
         <input type="file" id="fileInput" accept=".ipynb" />
         <br><br>
@@ -102,6 +99,7 @@
         const status = document.getElementById('status');
         let filename = 'notebook';
 
+        // 1. Load File
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -114,7 +112,7 @@
                 try {
                     const data = JSON.parse(event.target.result);
                     renderNotebook(data);
-                    status.textContent = "Preview loaded below. Click Download PDF to save.";
+                    status.textContent = "Preview loaded. Click Download PDF.";
                     convertBtn.disabled = false;
                 } catch (err) {
                     console.error(err);
@@ -124,40 +122,56 @@
             reader.readAsText(file);
         });
 
+        // 2. Generate PDF with Footer on Every Page
         convertBtn.addEventListener('click', () => {
-            status.textContent = "Generating PDF... Please wait (this may take a few seconds).";
+            status.textContent = "Generating PDF... (This may take a moment)";
             
             const opt = {
-                margin:       0, // Margins handled by CSS padding
+                margin:       [10, 10, 15, 10], // Top, Left, Bottom (extra space for footer), Right
                 filename:     filename + '.pdf',
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                // "avoid-all" tries to not cut images/divs in half
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } 
             };
 
-            // We select the PREVIEW element directly
-            html2pdf().set(opt).from(previewArea).save().then(() => {
+            // We chain the command to access the internal PDF object
+            html2pdf().from(previewArea).set(opt).toPdf().get('pdf').then((pdf) => {
+                // Get total pages
+                const totalPages = pdf.internal.getNumberOfPages();
+                
+                // Loop through each page and add the footer
+                for (let i = 1; i <= totalPages; i++) {
+                    pdf.setPage(i);
+                    pdf.setFontSize(9);
+                    pdf.setTextColor(100);
+                    
+                    const footerText = "Made by Karlo Sharma | Github Link - https://abhisheksharma-9.github.io/.ipynb-to-.pdf/";
+                    const pageWidth = pdf.internal.pageSize.getWidth();
+                    const pageHeight = pdf.internal.pageSize.getHeight();
+                    
+                    // Add text at bottom center
+                    pdf.text(footerText, pageWidth / 2, pageHeight - 8, { align: 'center' });
+                    
+                    // Optional: Add a line above footer
+                    pdf.setDrawColor(200);
+                    pdf.line(10, pageHeight - 12, pageWidth - 10, pageHeight - 12);
+                }
+            }).save().then(() => {
                 status.textContent = "PDF Downloaded!";
-            }).catch(err => {
-                status.textContent = "Error generating PDF: " + err.message;
             });
         });
 
+        // 3. Render Notebook Logic (Same as before)
         function renderNotebook(data) {
             previewArea.innerHTML = ''; 
-            
-            // Check for Cells
             const cells = data.cells || [];
-            if(cells.length === 0) {
-                previewArea.innerHTML = '<p style="text-align:center">This notebook appears to be empty.</p>';
-                return;
-            }
 
             cells.forEach(cell => {
                 const cellDiv = document.createElement('div');
-                cellDiv.className = 'cell';
+                cellDiv.className = 'cell'; // This class has 'page-break-inside: avoid'
 
-                // --- CODE CELLS ---
                 if (cell.cell_type === 'code') {
                     // Input
                     const inputRow = document.createElement('div');
@@ -175,22 +189,16 @@
                         cell.outputs.forEach(out => {
                             const outRow = document.createElement('div');
                             outRow.className = 'inner_cell';
-                            
                             let outHtml = '';
-                            
-                            // 1. Images (Base64)
+
                             if (out.data && (out.data['image/png'] || out.data['image/jpeg'])) {
                                 const mime = out.data['image/png'] ? 'image/png' : 'image/jpeg';
                                 const b64 = Array.isArray(out.data[mime]) ? out.data[mime].join('').replace(/\n/g, '') : out.data[mime];
                                 outHtml = `<img src="data:${mime};base64,${b64}" />`;
-                            } 
-                            // 2. Text/Plain
-                            else if (out.text || (out.data && out.data['text/plain'])) {
+                            } else if (out.text || (out.data && out.data['text/plain'])) {
                                 const txt = out.text || out.data['text/plain'];
                                 outHtml = `<pre>${escapeHtml(joinSource(txt))}</pre>`;
-                            }
-                            // 3. HTML (Simple render)
-                            else if (out.data && out.data['text/html']) {
+                            } else if (out.data && out.data['text/html']) {
                                 outHtml = `<div class="rendered_html">${joinSource(out.data['text/html'])}</div>`;
                             }
 
@@ -201,49 +209,22 @@
                             cellDiv.appendChild(outRow);
                         });
                     }
-                } 
-                // --- MARKDOWN CELLS ---
-                else if (cell.cell_type === 'markdown') {
+                } else if (cell.cell_type === 'markdown') {
                     const mdRow = document.createElement('div');
                     mdRow.className = 'inner_cell';
-                    const rawMd = joinSource(cell.source);
                     mdRow.innerHTML = `
                         <div class="prompt"></div>
-                        <div class="content_box rendered_html">${marked.parse(rawMd)}</div>
+                        <div class="content_box rendered_html">${marked.parse(joinSource(cell.source))}</div>
                     `;
                     cellDiv.appendChild(mdRow);
                 }
-
                 previewArea.appendChild(cellDiv);
             });
-
-            // Highlight Code
             document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
-
-            // Custom Footer
-            const footer = document.createElement('div');
-            footer.className = 'custom-footer';
-            footer.innerHTML = `
-                <span>Made by Karlo Sharma | Github Link - </span>
-                <a href="https://abhisheksharma-9.github.io/.ipynb-to-.pdf/" style="color:#007bff; text-decoration:none;">https://abhisheksharma-9.github.io/.ipynb-to-.pdf/</a>
-            `;
-            previewArea.appendChild(footer);
         }
 
-        // Helpers
-        function joinSource(s) {
-            if (Array.isArray(s)) return s.join('');
-            return s ? s : '';
-        }
-        function escapeHtml(text) {
-            if (!text) return '';
-            return text
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
+        function joinSource(s) { return Array.isArray(s) ? s.join('') : (s || ''); }
+        function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ''; }
     </script>
 </body>
 </html>
