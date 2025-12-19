@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPYNB to PDF Converter</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css">
+    
+    <style>
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* The UI Container */
+        .ui-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 20px;
+        }
+
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 30px;
+            cursor: pointer;
+            margin: 20px 0;
+            position: relative;
+        }
+        .upload-area:hover { background-color: #f9fff9; border-color: #4CAF50; }
+        .upload-area input {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
+        }
+
+        button {
+            background-color: #4CAF50; color: white; padding: 12px 24px;
+            border: none; border-radius: 6px; cursor: pointer; font-size: 16px;
+            display: none;
+        }
+
+        /* The Hidden Notebook Render Area (Mimics Jupyter CSS) */
+        #notebook-render {
+            width: 210mm; /* A4 Width */
+            min-height: 297mm;
+            padding: 20mm;
+            background: white;
+            box-sizing: border-box;
+            /* We hide this from the user's view, but the PDF generator sees it */
+            position: absolute;
+            top: -9999px; 
+            left: -9999px;
+        }
+
+        /* Jupyter Cell Styles */
+        .cell { margin-bottom: 1em; width: 100%; overflow: hidden; }
+        .input_area {
+            background: #f7f7f7;
+            border: 1px solid #cfcfcf;
+            border-radius: 2px;
+            padding: 5px;
+            font-family: monospace;
+        }
+        .prompt {
+            color: #303F9F;
+            font-family: monospace;
+            font-size: 13px;
+            min-width: 6em;
+            text-align: right;
+            padding-right: 10px;
+            display: inline-block;
+            vertical-align: top;
+        }
+        .inner_cell { display: flex; flex-direction: row; }
+        .input_content, .output_content { width: 100%; overflow-x: auto; }
+        .rendered_html { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; line-height: 1.5; }
+        img { max-width: 100%; height: auto; }
+        pre { margin: 0; }
+
+        /* Custom Footer Style */
+        .custom-footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+            text-align: center;
+            font-family: sans-serif;
+            font-size: 12px;
+            color: #555;
+            background-color: #fafafa;
+            padding: 15px;
+        }
+        .custom-footer a { color: #0366d6; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+    <div class="ui-container">
+        <h1>IPYNB to PDF</h1>
+        <p>Seamless Converter (Client-Side)</p>
+        
+        <div class="upload-area">
+            <span id="fileLabel">Drop .ipynb file here</span>
+            <input type="file" id="fileInput" accept=".ipynb">
+        </div>
+        
+        <button id="convertBtn">Download PDF</button>
+        <p id="status" style="color: #666; font-size: 14px; margin-top:10px;"></p>
+    </div>
+
+    <div id="notebook-render"></div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const convertBtn = document.getElementById('convertBtn');
+        const renderArea = document.getElementById('notebook-render');
+        const status = document.getElementById('status');
+        let notebookData = null;
+        let filename = 'notebook';
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                filename = file.name.replace('.ipynb', '');
+                document.getElementById('fileLabel').textContent = file.name;
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        notebookData = JSON.parse(event.target.result);
+                        convertBtn.style.display = 'inline-block';
+                        status.textContent = "File loaded. Ready to convert.";
+                    } catch (err) {
+                        status.textContent = "Error parsing JSON. Is this a valid .ipynb?";
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        convertBtn.addEventListener('click', () => {
+            status.textContent = "Rendering PDF... Please wait.";
+            renderNotebook(notebookData);
+            
+            // PDF Generation Options
+            const opt = {
+                margin:       0, // We handle margins in CSS
+                filename:     filename + '.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 }, // Higher scale = better quality
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(renderArea).save().then(() => {
+                status.textContent = "PDF Downloaded!";
+            });
+        });
+
+        function renderNotebook(data) {
+            renderArea.innerHTML = ''; // Clear previous
+
+            // 1. Render Cells
+            data.cells.forEach((cell, index) => {
+                const cellDiv = document.createElement('div');
+                cellDiv.className = 'cell';
+                
+                // --- Input Block (Code) ---
+                if (cell.cell_type === 'code') {
+                    const inner = document.createElement('div');
+                    inner.className = 'inner_cell';
+
+                    const prompt = document.createElement('div');
+                    prompt.className = 'prompt';
+                    prompt.textContent = `In [${cell.execution_count || ' '}]:`;
+
+                    const codeBlock = document.createElement('div');
+                    codeBlock.className = 'input_area input_content';
+                    const pre = document.createElement('pre');
+                    const code = document.createElement('code');
+                    code.className = 'language-python';
+                    code.textContent = Array.isArray(cell.source) ? cell.source.join('') : cell.source;
+                    hljs.highlightElement(code); // Syntax Highlighting
+                    
+                    pre.appendChild(code);
+                    codeBlock.appendChild(pre);
+                    inner.appendChild(prompt);
+                    inner.appendChild(codeBlock);
+                    cellDiv.appendChild(inner);
+
+                    // --- Outputs ---
+                    if (cell.outputs && cell.outputs.length > 0) {
+                        cell.outputs.forEach(output => {
+                            const outDiv = document.createElement('div');
+                            outDiv.className = 'inner_cell';
+                            
+                            const outPrompt = document.createElement('div');
+                            outPrompt.className = 'prompt';
+                            outPrompt.textContent = output.execution_count ? `Out[${output.execution_count}]:` : '';
+
+                            const outContent = document.createElement('div');
+                            outContent.className = 'output_content rendered_html';
+                            
+                            // Text Output
+                            if (output.text) {
+                                const preOut = document.createElement('pre');
+                                preOut.textContent = Array.isArray(output.text) ? output.text.join('') : output.text;
+                                outContent.appendChild(preOut);
+                            } 
+                            // Image Output (Base64)
+                            else if (output.data && (output.data['image/png'] || output.data['image/jpeg'])) {
+                                const img = document.createElement('img');
+                                const mime = output.data['image/png'] ? 'image/png' : 'image/jpeg';
+                                img.src = `data:${mime};base64,` + (output.data[mime]);
+                                outContent.appendChild(img);
+                            }
+                            // Execute Result (HTML/Text)
+                            else if (output.data && output.data['text/plain']) {
+                                const preOut = document.createElement('pre');
+                                preOut.textContent = Array.isArray(output.data['text/plain']) ? output.data['text/plain'].join('') : output.data['text/plain'];
+                                outContent.appendChild(preOut);
+                            }
+
+                            outDiv.appendChild(outPrompt);
+                            outDiv.appendChild(outContent);
+                            cellDiv.appendChild(outDiv);
+                        });
+                    }
+                } 
+                
+                // --- Markdown Block ---
+                else if (cell.cell_type === 'markdown') {
+                    const inner = document.createElement('div');
+                    inner.className = 'inner_cell';
+                    // Spacer for prompt alignment
+                    const spacer = document.createElement('div');
+                    spacer.className = 'prompt'; 
+                    
+                    const mdContent = document.createElement('div');
+                    mdContent.className = 'input_content rendered_html';
+                    const rawMd = Array.isArray(cell.source) ? cell.source.join('') : cell.source;
+                    mdContent.innerHTML = marked.parse(rawMd); // Convert MD to HTML
+
+                    inner.appendChild(spacer);
+                    inner.appendChild(mdContent);
+                    cellDiv.appendChild(inner);
+                }
+
+                renderArea.appendChild(cellDiv);
+            });
+
+            // 2. Append Custom Footer (Made By Karlo Sharma)
+            const footer = document.createElement('div');
+            footer.className = 'custom-footer';
+            footer.innerHTML = `
+                <span>Made by Karlo Sharma | Github Link - </span>
+                <a href="https://abhisheksharma-9.github.io/.ipynb-to-.pdf/">https://abhisheksharma-9.github.io/.ipynb-to-.pdf/</a>
+            `;
+            renderArea.appendChild(footer);
+        }
+    </script>
+</body>
+</html>
