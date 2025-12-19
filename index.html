@@ -13,7 +13,7 @@
     <style>
         body {
             font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-            background-color: #f4f7f6;
+            background-color: #e0e0e0;
             margin: 0;
             padding: 20px;
             display: flex;
@@ -21,252 +21,228 @@
             align-items: center;
         }
 
-        /* The UI Container */
-        .ui-container {
+        .controls {
             background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
             text-align: center;
             width: 100%;
-            max-width: 500px;
+            max-width: 600px;
             margin-bottom: 20px;
+            z-index: 100;
         }
 
-        .upload-area {
-            border: 2px dashed #ccc;
-            padding: 30px;
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
             cursor: pointer;
-            margin: 20px 0;
-            position: relative;
+            font-size: 16px;
+            margin: 5px;
         }
-        .upload-area:hover { background-color: #f9fff9; border-color: #4CAF50; }
-        .upload-area input {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
-        }
+        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        .btn-blue { background-color: #007bff; }
 
-        button {
-            background-color: #4CAF50; color: white; padding: 12px 24px;
-            border: none; border-radius: 6px; cursor: pointer; font-size: 16px;
-            display: none;
-        }
-
-        /* The Hidden Notebook Render Area (Mimics Jupyter CSS) */
-        #notebook-render {
-            width: 210mm; /* A4 Width */
+        /* The Printable Area (A4 Paper Visual) */
+        #notebook-preview {
+            background: white;
+            width: 210mm;
             min-height: 297mm;
             padding: 20mm;
-            background: white;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
             box-sizing: border-box;
-            /* We hide this from the user's view, but the PDF generator sees it */
-            position: absolute;
-            top: -9999px; 
-            left: -9999px;
+            margin-bottom: 50px;
         }
 
-        /* Jupyter Cell Styles */
-        .cell { margin-bottom: 1em; width: 100%; overflow: hidden; }
-        .input_area {
-            background: #f7f7f7;
-            border: 1px solid #cfcfcf;
-            border-radius: 2px;
-            padding: 5px;
-            font-family: monospace;
-        }
-        .prompt {
-            color: #303F9F;
-            font-family: monospace;
-            font-size: 13px;
-            min-width: 6em;
-            text-align: right;
-            padding-right: 10px;
-            display: inline-block;
-            vertical-align: top;
+        /* Jupyter Styling */
+        .cell { margin-bottom: 15px; width: 100%; word-wrap: break-word; }
+        .input_area { background: #f7f7f7; border: 1px solid #cfcfcf; padding: 5px; border-radius: 2px; }
+        .prompt { 
+            color: #303F9F; font-family: monospace; font-size: 13px; 
+            width: 60px; text-align: right; padding-right: 10px; flex-shrink: 0;
         }
         .inner_cell { display: flex; flex-direction: row; }
-        .input_content, .output_content { width: 100%; overflow-x: auto; }
-        .rendered_html { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; line-height: 1.5; }
-        img { max-width: 100%; height: auto; }
-        pre { margin: 0; }
+        .content_box { width: 100%; overflow-x: hidden; }
+        
+        pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+        img { max-width: 100%; height: auto; display: block; margin: 10px 0; }
 
-        /* Custom Footer Style */
+        /* Footer */
         .custom-footer {
-            margin-top: 50px;
-            padding-top: 20px;
-            border-top: 2px solid #eee;
+            margin-top: 40px;
+            padding-top: 15px;
+            border-top: 2px solid #333;
             text-align: center;
-            font-family: sans-serif;
             font-size: 12px;
             color: #555;
-            background-color: #fafafa;
-            padding: 15px;
+            background-color: #f9f9f9;
+            padding-bottom: 10px;
         }
-        .custom-footer a { color: #0366d6; text-decoration: none; }
     </style>
 </head>
 <body>
 
-    <div class="ui-container">
-        <h1>IPYNB to PDF</h1>
-        <p>Seamless Converter (Client-Side)</p>
-        
-        <div class="upload-area">
-            <span id="fileLabel">Drop .ipynb file here</span>
-            <input type="file" id="fileInput" accept=".ipynb">
-        </div>
-        
-        <button id="convertBtn">Download PDF</button>
-        <p id="status" style="color: #666; font-size: 14px; margin-top:10px;"></p>
+    <div class="controls">
+        <h2>IPYNB to PDF Converter</h2>
+        <input type="file" id="fileInput" accept=".ipynb" />
+        <br><br>
+        <button id="convertBtn" class="btn btn-blue" disabled>Download PDF</button>
+        <p id="status" style="margin-top:10px; font-size: 14px; color: #555;">Select a file to preview...</p>
     </div>
 
-    <div id="notebook-render"></div>
+    <div id="notebook-preview"></div>
 
     <script>
         const fileInput = document.getElementById('fileInput');
         const convertBtn = document.getElementById('convertBtn');
-        const renderArea = document.getElementById('notebook-render');
+        const previewArea = document.getElementById('notebook-preview');
         const status = document.getElementById('status');
-        let notebookData = null;
         let filename = 'notebook';
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
-            if (file) {
-                filename = file.name.replace('.ipynb', '');
-                document.getElementById('fileLabel').textContent = file.name;
-                
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        notebookData = JSON.parse(event.target.result);
-                        convertBtn.style.display = 'inline-block';
-                        status.textContent = "File loaded. Ready to convert.";
-                    } catch (err) {
-                        status.textContent = "Error parsing JSON. Is this a valid .ipynb?";
-                    }
-                };
-                reader.readAsText(file);
-            }
+            if (!file) return;
+
+            filename = file.name.replace('.ipynb', '');
+            status.textContent = "Parsing file...";
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    renderNotebook(data);
+                    status.textContent = "Preview loaded below. Click Download PDF to save.";
+                    convertBtn.disabled = false;
+                } catch (err) {
+                    console.error(err);
+                    status.textContent = "Error: Invalid IPYNB file.";
+                }
+            };
+            reader.readAsText(file);
         });
 
         convertBtn.addEventListener('click', () => {
-            status.textContent = "Rendering PDF... Please wait.";
-            renderNotebook(notebookData);
+            status.textContent = "Generating PDF... Please wait (this may take a few seconds).";
             
-            // PDF Generation Options
             const opt = {
-                margin:       0, // We handle margins in CSS
+                margin:       0, // Margins handled by CSS padding
                 filename:     filename + '.pdf',
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2 }, // Higher scale = better quality
+                html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
-            html2pdf().set(opt).from(renderArea).save().then(() => {
+            // We select the PREVIEW element directly
+            html2pdf().set(opt).from(previewArea).save().then(() => {
                 status.textContent = "PDF Downloaded!";
+            }).catch(err => {
+                status.textContent = "Error generating PDF: " + err.message;
             });
         });
 
         function renderNotebook(data) {
-            renderArea.innerHTML = ''; // Clear previous
+            previewArea.innerHTML = ''; 
+            
+            // Check for Cells
+            const cells = data.cells || [];
+            if(cells.length === 0) {
+                previewArea.innerHTML = '<p style="text-align:center">This notebook appears to be empty.</p>';
+                return;
+            }
 
-            // 1. Render Cells
-            data.cells.forEach((cell, index) => {
+            cells.forEach(cell => {
                 const cellDiv = document.createElement('div');
                 cellDiv.className = 'cell';
-                
-                // --- Input Block (Code) ---
+
+                // --- CODE CELLS ---
                 if (cell.cell_type === 'code') {
-                    const inner = document.createElement('div');
-                    inner.className = 'inner_cell';
+                    // Input
+                    const inputRow = document.createElement('div');
+                    inputRow.className = 'inner_cell';
+                    inputRow.innerHTML = `
+                        <div class="prompt">In [${cell.execution_count || ' '}]:</div>
+                        <div class="content_box input_area">
+                            <pre><code class="language-python">${escapeHtml(joinSource(cell.source))}</code></pre>
+                        </div>
+                    `;
+                    cellDiv.appendChild(inputRow);
 
-                    const prompt = document.createElement('div');
-                    prompt.className = 'prompt';
-                    prompt.textContent = `In [${cell.execution_count || ' '}]:`;
-
-                    const codeBlock = document.createElement('div');
-                    codeBlock.className = 'input_area input_content';
-                    const pre = document.createElement('pre');
-                    const code = document.createElement('code');
-                    code.className = 'language-python';
-                    code.textContent = Array.isArray(cell.source) ? cell.source.join('') : cell.source;
-                    hljs.highlightElement(code); // Syntax Highlighting
-                    
-                    pre.appendChild(code);
-                    codeBlock.appendChild(pre);
-                    inner.appendChild(prompt);
-                    inner.appendChild(codeBlock);
-                    cellDiv.appendChild(inner);
-
-                    // --- Outputs ---
-                    if (cell.outputs && cell.outputs.length > 0) {
-                        cell.outputs.forEach(output => {
-                            const outDiv = document.createElement('div');
-                            outDiv.className = 'inner_cell';
+                    // Outputs
+                    if (cell.outputs && cell.outputs.length) {
+                        cell.outputs.forEach(out => {
+                            const outRow = document.createElement('div');
+                            outRow.className = 'inner_cell';
                             
-                            const outPrompt = document.createElement('div');
-                            outPrompt.className = 'prompt';
-                            outPrompt.textContent = output.execution_count ? `Out[${output.execution_count}]:` : '';
-
-                            const outContent = document.createElement('div');
-                            outContent.className = 'output_content rendered_html';
+                            let outHtml = '';
                             
-                            // Text Output
-                            if (output.text) {
-                                const preOut = document.createElement('pre');
-                                preOut.textContent = Array.isArray(output.text) ? output.text.join('') : output.text;
-                                outContent.appendChild(preOut);
+                            // 1. Images (Base64)
+                            if (out.data && (out.data['image/png'] || out.data['image/jpeg'])) {
+                                const mime = out.data['image/png'] ? 'image/png' : 'image/jpeg';
+                                const b64 = Array.isArray(out.data[mime]) ? out.data[mime].join('').replace(/\n/g, '') : out.data[mime];
+                                outHtml = `<img src="data:${mime};base64,${b64}" />`;
                             } 
-                            // Image Output (Base64)
-                            else if (output.data && (output.data['image/png'] || output.data['image/jpeg'])) {
-                                const img = document.createElement('img');
-                                const mime = output.data['image/png'] ? 'image/png' : 'image/jpeg';
-                                img.src = `data:${mime};base64,` + (output.data[mime]);
-                                outContent.appendChild(img);
+                            // 2. Text/Plain
+                            else if (out.text || (out.data && out.data['text/plain'])) {
+                                const txt = out.text || out.data['text/plain'];
+                                outHtml = `<pre>${escapeHtml(joinSource(txt))}</pre>`;
                             }
-                            // Execute Result (HTML/Text)
-                            else if (output.data && output.data['text/plain']) {
-                                const preOut = document.createElement('pre');
-                                preOut.textContent = Array.isArray(output.data['text/plain']) ? output.data['text/plain'].join('') : output.data['text/plain'];
-                                outContent.appendChild(preOut);
+                            // 3. HTML (Simple render)
+                            else if (out.data && out.data['text/html']) {
+                                outHtml = `<div class="rendered_html">${joinSource(out.data['text/html'])}</div>`;
                             }
 
-                            outDiv.appendChild(outPrompt);
-                            outDiv.appendChild(outContent);
-                            cellDiv.appendChild(outDiv);
+                            outRow.innerHTML = `
+                                <div class="prompt">Out[${out.execution_count || ''}]:</div>
+                                <div class="content_box">${outHtml}</div>
+                            `;
+                            cellDiv.appendChild(outRow);
                         });
                     }
                 } 
-                
-                // --- Markdown Block ---
+                // --- MARKDOWN CELLS ---
                 else if (cell.cell_type === 'markdown') {
-                    const inner = document.createElement('div');
-                    inner.className = 'inner_cell';
-                    // Spacer for prompt alignment
-                    const spacer = document.createElement('div');
-                    spacer.className = 'prompt'; 
-                    
-                    const mdContent = document.createElement('div');
-                    mdContent.className = 'input_content rendered_html';
-                    const rawMd = Array.isArray(cell.source) ? cell.source.join('') : cell.source;
-                    mdContent.innerHTML = marked.parse(rawMd); // Convert MD to HTML
-
-                    inner.appendChild(spacer);
-                    inner.appendChild(mdContent);
-                    cellDiv.appendChild(inner);
+                    const mdRow = document.createElement('div');
+                    mdRow.className = 'inner_cell';
+                    const rawMd = joinSource(cell.source);
+                    mdRow.innerHTML = `
+                        <div class="prompt"></div>
+                        <div class="content_box rendered_html">${marked.parse(rawMd)}</div>
+                    `;
+                    cellDiv.appendChild(mdRow);
                 }
 
-                renderArea.appendChild(cellDiv);
+                previewArea.appendChild(cellDiv);
             });
 
-            // 2. Append Custom Footer (Made By Karlo Sharma)
+            // Highlight Code
+            document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+
+            // Custom Footer
             const footer = document.createElement('div');
             footer.className = 'custom-footer';
             footer.innerHTML = `
                 <span>Made by Karlo Sharma | Github Link - </span>
-                <a href="https://abhisheksharma-9.github.io/.ipynb-to-.pdf/">https://abhisheksharma-9.github.io/.ipynb-to-.pdf/</a>
+                <a href="https://abhisheksharma-9.github.io/.ipynb-to-.pdf/" style="color:#007bff; text-decoration:none;">https://abhisheksharma-9.github.io/.ipynb-to-.pdf/</a>
             `;
-            renderArea.appendChild(footer);
+            previewArea.appendChild(footer);
+        }
+
+        // Helpers
+        function joinSource(s) {
+            if (Array.isArray(s)) return s.join('');
+            return s ? s : '';
+        }
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
     </script>
 </body>
