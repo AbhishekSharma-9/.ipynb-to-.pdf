@@ -1,474 +1,359 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jupyter to PDF (by Abhishek Sharma)</title>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-light.min.css">
-    
-    <script>
-        window.MathJax = {
-            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
-            svg: { fontCache: 'global' },
-            startup: {
-                ready: () => {
-                    MathJax.startup.defaultReady();
-                    window.mathJaxReady = true;
-                }
-            }
-        };
-    </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jupyter to PDF</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' },
+            startup: {
+                ready: () => {
+                    MathJax.startup.defaultReady();
+                    window.mathJaxReady = true;
+                }
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
-    <style>
-        :root {
-            --primary: #4F46E5;
-            --primary-hover: #4338ca;
-            --bg-gradient-1: #0f172a;
-            --bg-gradient-2: #1e293b;
-            --glass-bg: rgba(255, 255, 255, 0.95);
-            --glass-border: rgba(255, 255, 255, 0.2);
-            --text-main: #1e293b;
-            --text-muted: #64748b;
-            --paper-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css">
+    
+    <style>
+        /* --- APP BACKGROUND --- */
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background-color: #525659;
+            margin: 0;
+            padding: 40px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background: radial-gradient(circle at top left, #1e1e24, #0b0b0f);
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            color: var(--text-main);
-            overflow-x: hidden;
-        }
+        /* --- CONTROL PANEL --- */
+        .controls {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            text-align: center;
+            width: 90%;
+            max-width: 500px;
+            margin-bottom: 30px;
+            z-index: 10;
+        }
 
-        /* --- BACKGROUND FX --- */
-        .bg-mesh {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            z-index: -1;
-            background-image: 
-                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
-                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
-            opacity: 0.8;
-        }
+        .btn {
+            background-color: #e67e22;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 15px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background-color: #d35400; }
+        .btn:disabled { background-color: #ccc; cursor: wait; }
 
-        /* --- HEADER & CONTROLS --- */
-        .app-header {
-            width: 100%;
-            padding: 20px 0;
-            text-align: center;
-            margin-bottom: 10px;
-        }
+        /* --- PREVIEW PAGE (A4 Logic) --- */
+        #notebook-preview {
+            background: white;
+            width: 210mm; /* A4 Width */
+            min-height: 297mm;
+            /* VISUAL MARGINS: Handled by padding. 
+               We set PDF margins to 0 Left/Right to respect this exactly. */
+            padding: 10mm 15mm; 
+            margin: 0 auto;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            box-sizing: border-box;
+            position: relative;
+        }
 
-        .logo {
-            color: white;
-            font-weight: 600;
-            font-size: 1.5rem;
-            margin: 0;
-            letter-spacing: -0.5px;
-        }
-        .logo span { color: #818cf8; }
+        /* --- CELL STYLING --- */
+        .cell { 
+            margin-bottom: 15px; 
+            width: 100%;
+        }
 
-        .controls-wrapper {
-            position: sticky;
-            top: 20px;
-            z-index: 100;
-            width: 90%;
-            max-width: 800px;
-            margin-bottom: 40px;
-        }
+        /* --- ATOMIC BLOCKS (PREVENT SPLITTING) --- */
+        /* This class is applied to Input groups, Output rows, and Markdown blocks.
+           'page-break-inside: avoid' forces the PDF engine to push the whole block 
+           to the next page if it doesn't fit at the bottom. */
+        .no-break {
+            page-break-inside: avoid;
+            break-inside: avoid;
+            margin-bottom: 8px;
+        }
 
-        .controls {
-            background: var(--glass-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            padding: 15px 25px;
-            border-radius: 16px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--glass-border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
+        /* --- INNER LAYOUT --- */
+        .inner_cell { 
+            display: flex; 
+            flex-direction: row; 
+            align-items: flex-start;
+        }
 
-        .file-upload-group {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            flex-grow: 1;
-        }
+        /* --- PROMPTS --- */
+        .prompt { 
+            font-family: "Menlo", "Consolas", "DejaVu Sans Mono", monospace; 
+            font-size: 11px; 
+            width: 14mm; 
+            text-align: right; 
+            padding-right: 3mm; 
+            padding-top: 5px; 
+            flex-shrink: 0;
+            user-select: none;
+        }
+        .prompt.input { color: #303F9F; font-weight: bold; }
+        .prompt.output { color: #D84315; }
 
-        /* Custom File Input */
-        input[type="file"] { display: none; }
-        
-        .custom-file-upload {
-            border: 1px dashed #cbd5e1;
-            display: inline-block;
-            padding: 10px 20px;
-            cursor: pointer;
-            border-radius: 8px;
-            background: #f8fafc;
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            transition: all 0.2s;
-            font-weight: 500;
-            white-space: nowrap;
-        }
-        .custom-file-upload:hover {
-            border-color: var(--primary);
-            color: var(--primary);
-            background: #eef2ff;
-        }
+        /* --- CONTENT BOXES --- */
+        .content_box {
+            flex-grow: 1;
+            min-width: 0; /* Flexbox overflow fix */
+        }
 
-        .status-text {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            font-weight: 500;
-            white-space: nowrap;
-        }
+        .input_area { 
+            background: #f7f7f7; 
+            border: 1px solid #e0e0e0; 
+            border-radius: 2px; 
+            padding: 8px 10px; 
+            width: 100%;
+            box-sizing: border-box;
+        }
 
-        .btn-primary {
-            background-color: var(--primary);
-            color: white;
-            padding: 10px 24px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.95rem;
-            font-weight: 600;
-            transition: transform 0.1s, background-color 0.2s;
-            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3);
-        }
-        .btn-primary:hover:not(:disabled) {
-            background-color: var(--primary-hover);
-            transform: translateY(-1px);
-        }
-        .btn-primary:active:not(:disabled) { transform: translateY(0); }
-        .btn-primary:disabled {
-            background-color: #94a3b8;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
+        pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
+        code { 
+            font-family: "Menlo", "Consolas", "DejaVu Sans Mono", monospace; 
+            font-size: 12px; 
+            line-height: 1.45;
+        }
 
-        /* --- PREVIEW AREA (The Desk) --- */
-        .preview-container {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            padding-bottom: 60px;
-            /* Allow horizontal scroll on mobile for the fixed-width A4 */
-            overflow-x: auto; 
-        }
+        /* --- OUTPUTS --- */
+        .output_wrapper { 
+            font-family: "Menlo", "Consolas", monospace;
+            font-size: 12px;
+            color: #2c2c2c;
+            width: 100%;
+        }
+        
+        img { 
+            max-width: 100%; 
+            height: auto; 
+            display: block; 
+            margin-top: 5px;
+            background-color: white;
+        }
 
-        #notebook-preview {
-            background: white;
-            /* A4 Dimensions exactly */
-            width: 210mm; 
-            min-height: 297mm;
-            padding: 15mm 15mm; 
-            box-sizing: border-box;
-            position: relative;
-            box-shadow: var(--paper-shadow);
-            margin: 0 20px; /* Visual margin inside scroll area */
-        }
-
-        /* --- NOTEBOOK CONTENT STYLING --- */
-        .cell { margin-bottom: 20px; width: 100%; }
-        
-        /* Utility to prevent splitting blocks across pages */
-        .no-break { page-break-inside: avoid; break-inside: avoid; }
-
-        .inner_cell { display: flex; flex-direction: row; align-items: flex-start; margin-bottom: 8px; }
-
-        .prompt {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
-            width: 12mm;
-            text-align: right;
-            padding-right: 3mm;
-            padding-top: 6px;
-            flex-shrink: 0;
-            user-select: none;
-        }
-        .prompt.input { color: #6366f1; font-weight: 600; } /* Soft Indigo */
-        .prompt.output { color: #ef4444; } /* Soft Red */
-
-        .content_box { flex-grow: 1; min-width: 0; }
-
-        .input_area {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 10px 12px;
-            width: 100%;
-            box-sizing: border-box;
-            position: relative;
-        }
-        
-        /* Code Font */
-        pre, code {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11.5px;
-            line-height: 1.5;
-        }
-        pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
-
-        .output_wrapper {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11.5px;
-            color: #334155;
-            padding-top: 4px;
-        }
-
-        img { max-width: 100%; height: auto; display: block; margin-top: 5px; border-radius: 4px; }
-
-        /* Markdown Text */
-        .rendered_html {
-            font-family: 'Inter', sans-serif;
-            font-size: 14px;
-            line-height: 1.6;
-            color: #1e293b;
-            padding-left: 15mm; /* Align with code */
-            margin-bottom: 15px;
-        }
-        .rendered_html h1, .rendered_html h2, .rendered_html h3 { margin-top: 20px; margin-bottom: 10px; color: #0f172a; }
-        .rendered_html h1 { font-size: 1.6em; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
-        .rendered_html h2 { font-size: 1.4em; }
-        .rendered_html p { margin-bottom: 10px; }
-        
-        /* Tables */
-        .rendered_html table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 12px; }
-        .rendered_html th, .rendered_html td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
-        .rendered_html th { background-color: #f1f5f9; font-weight: 600; }
-
-        mjx-container { font-size: 110% !important; }
-
-        /* --- RESPONSIVE ADJUSTMENTS --- */
-        @media (max-width: 768px) {
-            .controls { flex-direction: column; width: 100%; gap: 15px; }
-            .file-upload-group { width: 100%; justify-content: center; flex-direction: column; }
-            .btn-primary { width: 100%; }
-            .custom-file-upload { width: 100%; text-align: center; box-sizing: border-box; }
-            /* The preview container handles horizontal scrolling automatically */
-        }
-    </style>
+        /* --- MARKDOWN --- */
+        .rendered_html { 
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 14px; 
+            line-height: 1.5; 
+            color: #212121;
+            padding-left: 17mm; /* Align with Prompt width + padding */
+            margin-bottom: 15px;
+        }
+        
+        /* Table Styling */
+        .rendered_html table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 10px 0;
+            font-size: 13px;
+            page-break-inside: avoid;
+        }
+        .rendered_html th, .rendered_html td {
+            border: 1px solid #ddd;
+            padding: 6px 8px;
+            text-align: left;
+        }
+        .rendered_html th { background-color: #f2f2f2; font-weight: bold; }
+        
+        /* MathJax Adjustments */
+        mjx-container { font-size: 110% !important; }
+    </style>
 </head>
 <body>
 
-    <div class="bg-mesh"></div>
+    <div class="controls" data-html2canvas-ignore="true">
+        <h2 style="margin:0 0 10px 0; color:#333;">Jupyter to PDF (Smart)</h2>
+        <p style="margin:0 0 20px 0; color:#666; font-size:14px;">Perfect alignment. No split cells. No footer overlap.</p>
+        
+        <input type="file" id="fileInput" accept=".ipynb" style="margin-bottom:10px;" />
+        <br>
+        <button id="convertBtn" class="btn" disabled>Generate PDF</button>
+        <p id="status" style="margin-top:15px; font-size: 13px; color: #555; min-height: 18px;">Waiting for file...</p>
+    </div>
 
-    <div class="app-header">
-        <h1 class="logo">Jupyter<span>2PDF</span></h1>
-    </div>
+    <div id="notebook-preview"></div>
 
-    <div class="controls-wrapper" data-html2canvas-ignore="true">
-        <div class="controls">
-            <div class="file-upload-group">
-                <label for="fileInput" class="custom-file-upload">
-                    📂 Upload .ipynb file
-                </label>
-                <input type="file" id="fileInput" accept=".ipynb" />
-                <span id="status" class="status-text">Waiting for file...</span>
-            </div>
-            <button id="convertBtn" class="btn-primary" disabled>Download PDF</button>
-        </div>
-    </div>
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const convertBtn = document.getElementById('convertBtn');
+        const previewArea = document.getElementById('notebook-preview');
+        const status = document.getElementById('status');
+        let filename = 'notebook';
 
-    <div class="preview-container">
-        <div id="notebook-preview">
-            <div style="text-align: center; padding-top: 100px; opacity: 0.3;">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 20px;">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                    <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-                <p style="font-size: 1.2rem; font-weight: 500;">Preview Area</p>
-                <p style="font-size: 0.9rem;">Your rendered notebook will appear here.</p>
-            </div>
-        </div>
-    </div>
+        // 1. File Upload Handling
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            filename = file.name.replace('.ipynb', '');
+            status.textContent = "Parsing Notebook...";
+            convertBtn.disabled = true;
 
-    <script>
-        const fileInput = document.getElementById('fileInput');
-        const convertBtn = document.getElementById('convertBtn');
-        const previewArea = document.getElementById('notebook-preview');
-        const status = document.getElementById('status');
-        let filename = 'notebook';
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    renderNotebook(data);
+                } catch (err) {
+                    console.error(err);
+                    status.textContent = "Error: Invalid IPYNB file.";
+                }
+            };
+            reader.readAsText(file);
+        });
 
-        // 1. File Upload Handling
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            // Update UI for File Selection
-            filename = file.name.replace('.ipynb', '');
-            status.textContent = `Processing: ${file.name}`;
-            status.style.color = "#4F46E5";
-            convertBtn.disabled = true;
+        // 2. Render Logic
+        async function renderNotebook(data) {
+            previewArea.innerHTML = ''; 
+            const cells = data.cells || [];
 
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                try {
-                    const data = JSON.parse(event.target.result);
-                    renderNotebook(data);
-                } catch (err) {
-                    console.error(err);
-                    status.textContent = "Error: Invalid IPYNB file.";
-                    status.style.color = "#ef4444";
-                }
-            };
-            reader.readAsText(file);
-        });
+            for (const cell of cells) {
+                const cellDiv = document.createElement('div');
+                cellDiv.className = 'cell';
 
-        // 2. Render Logic
-        async function renderNotebook(data) {
-            previewArea.innerHTML = ''; 
-            const cells = data.cells || [];
+                // --- CODE CELLS ---
+                if (cell.cell_type === 'code') {
+                    // Input Block -> ATOMIC (no-break)
+                    const inputGroup = document.createElement('div');
+                    inputGroup.className = 'inner_cell no-break'; 
+                    inputGroup.innerHTML = `
+                        <div class="prompt input">In [${cell.execution_count || ' '}]:</div>
+                        <div class="content_box">
+                            <div class="input_area">
+                                <pre><code class="language-python">${escapeHtml(joinSource(cell.source))}</code></pre>
+                            </div>
+                        </div>
+                    `;
+                    cellDiv.appendChild(inputGroup);
 
-            // Add title if metadata exists (optional polish)
-            // if(data.metadata && data.metadata.kernelspec) { ... }
+                    // Output Blocks -> ATOMIC (no-break)
+                    if (cell.outputs && cell.outputs.length) {
+                        cell.outputs.forEach(out => {
+                            const outRow = document.createElement('div');
+                            outRow.className = 'inner_cell no-break';
+                            let outHtml = '';
 
-            for (const cell of cells) {
-                const cellDiv = document.createElement('div');
-                cellDiv.className = 'cell';
+                            if (out.data && (out.data['image/png'] || out.data['image/jpeg'])) {
+                                const mime = out.data['image/png'] ? 'image/png' : 'image/jpeg';
+                                const b64 = Array.isArray(out.data[mime]) ? out.data[mime].join('').replace(/\n/g, '') : out.data[mime];
+                                outHtml = `<img src="data:${mime};base64,${b64}" />`;
+                            } 
+                            else if (out.text || (out.data && out.data['text/plain'])) {
+                                const txt = out.text || out.data['text/plain'];
+                                outHtml = `<pre>${escapeHtml(joinSource(txt))}</pre>`;
+                            } 
+                            else if (out.data && out.data['text/html']) {
+                                outHtml = `<div style="width:100%">${joinSource(out.data['text/html'])}</div>`;
+                            }
 
-                // --- CODE CELLS ---
-                if (cell.cell_type === 'code') {
-                    // Input Block -> ATOMIC (no-break)
-                    const inputGroup = document.createElement('div');
-                    inputGroup.className = 'inner_cell no-break'; 
-                    inputGroup.innerHTML = `
-                        <div class="prompt input">In [${cell.execution_count || ' '}]:</div>
-                        <div class="content_box">
-                            <div class="input_area">
-                                <pre><code class="language-python">${escapeHtml(joinSource(cell.source))}</code></pre>
-                            </div>
-                        </div>
-                    `;
-                    cellDiv.appendChild(inputGroup);
+                            if(outHtml) {
+                                const promptText = (out.output_type === 'execute_result') 
+                                    ? `Out [${cell.execution_count || ''}]:` 
+                                    : ''; 
+                                
+                                outRow.innerHTML = `
+                                    <div class="prompt output">${promptText}</div>
+                                    <div class="content_box output_wrapper">${outHtml}</div>
+                                `;
+                                cellDiv.appendChild(outRow);
+                            }
+                        });
+                    }
+                } 
+                // --- MARKDOWN CELLS ---
+                else if (cell.cell_type === 'markdown') {
+                    const mdDiv = document.createElement('div');
+                    // Mark markdown as no-break so paragraphs don't split awkwardly
+                    mdDiv.className = 'rendered_html no-break';
+                    mdDiv.innerHTML = marked.parse(joinSource(cell.source));
+                    cellDiv.appendChild(mdDiv);
+                }
 
-                    // Output Blocks -> ATOMIC (no-break)
-                    if (cell.outputs && cell.outputs.length) {
-                        cell.outputs.forEach(out => {
-                            const outRow = document.createElement('div');
-                            outRow.className = 'inner_cell no-break';
-                            let outHtml = '';
+                previewArea.appendChild(cellDiv);
+            }
 
-                            if (out.data && (out.data['image/png'] || out.data['image/jpeg'])) {
-                                const mime = out.data['image/png'] ? 'image/png' : 'image/jpeg';
-                                const b64 = Array.isArray(out.data[mime]) ? out.data[mime].join('').replace(/\n/g, '') : out.data[mime];
-                                outHtml = `<img src="data:${mime};base64,${b64}" />`;
-                            } 
-                            else if (out.text || (out.data && out.data['text/plain'])) {
-                                const txt = out.text || out.data['text/plain'];
-                                outHtml = `<pre>${escapeHtml(joinSource(txt))}</pre>`;
-                            } 
-                            else if (out.data && out.data['text/html']) {
-                                outHtml = `<div style="width:100%">${joinSource(out.data['text/html'])}</div>`;
-                            }
+            document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
 
-                            if(outHtml) {
-                                const promptText = (out.output_type === 'execute_result') 
-                                    ? `Out [${cell.execution_count || ''}]:` 
-                                    : ''; 
-                                
-                                outRow.innerHTML = `
-                                    <div class="prompt output">${promptText}</div>
-                                    <div class="content_box output_wrapper">${outHtml}</div>
-                                `;
-                                cellDiv.appendChild(outRow);
-                            }
-                        });
-                    }
-                } 
-                // --- MARKDOWN CELLS ---
-                else if (cell.cell_type === 'markdown') {
-                    const mdDiv = document.createElement('div');
-                    mdDiv.className = 'rendered_html no-break';
-                    mdDiv.innerHTML = marked.parse(joinSource(cell.source));
-                    cellDiv.appendChild(mdDiv);
-                }
+            if (window.MathJax) {
+                status.textContent = "Rendering Math...";
+                await MathJax.typesetPromise([previewArea]);
+            }
 
-                previewArea.appendChild(cellDiv);
-            }
+            status.textContent = "Ready to Download.";
+            convertBtn.disabled = false;
+        }
 
-            // Syntax Highlighting
-            document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+        // 3. PDF Generation Logic
+        convertBtn.addEventListener('click', () => {
+            status.textContent = "Generating PDF...";
+            convertBtn.disabled = true;
 
-            // MathJax
-            if (window.MathJax) {
-                status.textContent = "Rendering Mathematics...";
-                await MathJax.typesetPromise([previewArea]);
-            }
+            const opt = {
+                // MARGINS: [Top, Left, Bottom, Right]
+                // Bottom=15mm creates the "Safe Zone" for the footer.
+                // Left/Right=0 ensures our CSS padding handles the width centering correctly.
+                margin:       [10, 0, 15, 0], 
+                filename:     filename + '.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                // 'css' mode respects the 'page-break-inside: avoid' rule we added
+                pagebreak:    { mode: 'css', avoid: '.no-break' } 
+            };
 
-            status.textContent = "Ready to Download";
-            status.style.color = "#10b981"; // Green
-            convertBtn.disabled = false;
-        }
+            html2pdf().from(previewArea).set(opt).toPdf().get('pdf').then((pdf) => {
+                const totalPages = pdf.internal.getNumberOfPages();
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                
+                for (let i = 1; i <= totalPages; i++) {
+                    pdf.setPage(i);
+                    pdf.setFontSize(8);
+                    pdf.setTextColor(120); 
+                    
+                    const text = "Made by Karlo Sharma | Github Link - https://abhisheksharma-9.github.io/.ipynb-to-.pdf/";
+                    
+                    // Footer Line (Drawn in the 15mm safe zone)
+                    pdf.setDrawColor(200); 
+                    pdf.setLineWidth(0.1);
+                    pdf.line(15, pageHeight - 12, pageWidth - 15, pageHeight - 12);
+                    
+                    pdf.text(text, pageWidth / 2, pageHeight - 8, { align: 'center' });
+                }
+            }).save().then(() => {
+                status.textContent = "Download Complete!";
+                convertBtn.disabled = false;
+            });
+        });
 
-        // 3. PDF Generation Logic
-        convertBtn.addEventListener('click', () => {
-            const originalText = convertBtn.innerText;
-            convertBtn.innerText = "Generating...";
-            convertBtn.disabled = true;
-            status.textContent = "Converting HTML to PDF canvas...";
-
-            const opt = {
-                margin:       [10, 0, 15, 0], 
-                filename:     filename + '.pdf',
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak:    { mode: 'css', avoid: '.no-break' } 
-            };
-
-            html2pdf().from(previewArea).set(opt).toPdf().get('pdf').then((pdf) => {
-                const totalPages = pdf.internal.getNumberOfPages();
-                const pageWidth = pdf.internal.pageSize.getWidth();
-                const pageHeight = pdf.internal.pageSize.getHeight();
-                
-                for (let i = 1; i <= totalPages; i++) {
-                    pdf.setPage(i);
-                    pdf.setFontSize(8);
-                    pdf.setTextColor(150); 
-                    
-                    const text = "Generated via Jupyter2PDF | Github Link - https://abhisheksharma-9.github.io/.ipynb-to-.pdf/";
-                    
-                    // Footer Line
-                    pdf.setDrawColor(220); 
-                    pdf.setLineWidth(0.1);
-                    pdf.line(15, pageHeight - 12, pageWidth - 15, pageHeight - 12);
-                    
-                    pdf.text(text, pageWidth / 2, pageHeight - 8, { align: 'center' });
-                }
-            }).save().then(() => {
-                status.textContent = "Download Complete!";
-                convertBtn.innerText = originalText;
-                convertBtn.disabled = false;
-            });
-        });
-
-        function joinSource(s) { return Array.isArray(s) ? s.join('') : (s || ''); }
-        function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ''; }
-    </script>
+        function joinSource(s) { return Array.isArray(s) ? s.join('') : (s || ''); }
+        function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ''; }
+    </script>
 </body>
 </html>
+just enhance the UI for full web project with pure professionalism! add eye catching background behind the preview and make the page responsive
